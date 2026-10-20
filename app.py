@@ -35,6 +35,18 @@ if st.button("Download", type="primary", use_container_width=True):
             "no_warnings": True,
             "noplaylist": True,
             "max_filesize": 500 * 1024 * 1024,
+            "socket_timeout": 30,
+            "retries": 3,
+            "extractor_retries": 3,
+            "http_headers": {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["web", "mweb", "android"],
+                },
+            },
         }
 
         if mode == "Video (MP4)":
@@ -88,13 +100,15 @@ if st.button("Download", type="primary", use_container_width=True):
                                 use_container_width=True,
                             )
                     else:
-                        st.error("File not found")
+                        st.error("File not found after download")
             except yt_dlp.utils.DownloadError as e:
                 msg = str(e)
                 if "Private video" in msg or "Sign in" in msg:
                     st.error("Private video or login required")
                 elif "not a valid URL" in msg or "Unsupported URL" in msg:
                     st.error("Unsupported URL format")
+                elif "player response" in msg or "bot" in msg.lower() or "blocked" in msg.lower():
+                    st.error("This site blocked the cloud server. Try a different platform or use the local version.")
                 else:
                     st.error("Download failed: " + msg[:200])
             except Exception as e:
