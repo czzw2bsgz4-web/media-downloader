@@ -1,1 +1,116 @@
-import streamlit as st\nimport yt_dlp\nimport os\nimport tempfile\nimport re\n\nst.set_page_config(page_title="萬用影音下載器", page_icon="🎬", layout="centered")\n\nst.markdown("""\n<style>\n    .stApp { max-width: 700px; margin: 0 auto; }\n    .big-title { text-align: center; font-size: 2em; margin-bottom: 0; }\n    .subtitle { text-align: center; color: #888; margin-top: 0; }\n</style>\n""", unsafe_allow_html=True)\n\nst.markdown("<h1 class=\'big-title\'>🎬 萬用影音下載器</h1>", unsafe_allow_html=True)\nst.markdown("<p class=\'subtitle\'>支援 YouTube / IG / TikTok / X / Facebook / Bilibili 等 1000+ 平台</p>", unsafe_allow_html=True)\nst.divider()\n\nurl = st.text_input("📎 貼上影音網址", placeholder="https://...")\n\ncol1, col2 = st.columns(2)\nwith col1:\n    mode = st.radio("下載模式", ["影片（MP4）", "僅音訊（MP3）", "影片 + 字幕"])\nwith col2:\n    quality = st.radio("畫質", ["最佳畫質", "1080p", "720p", "480p"])\n\nif st.button("⬇️ 開始下載", type="primary", use_container_width=True):\n    if not url or not url.strip():\n        st.error("請貼上網址")\n    else:\n        url = url.strip()\n        if not re.match(r"https?://", url):\n            url = "https://" + url\n\n        tmp_dir = tempfile.mkdtemp()\n        output_template = os.path.join(tmp_dir, "%(title).70s.%(ext)s")\n\n        base_opts = {\n            "outtmpl": output_template,\n            "quiet": True,\n            "no_warnings": True,\n            "noplaylist": True,\n            "max_filesize": 500 * 1024 * 1024,\n        }\n\n        if mode == "影片（MP4）":\n            res_map = {"最佳畫質": "", "1080p": "1080", "720p": "720", "480p": "480"}\n            res = res_map.get(quality, "")\n            if res:\n                fmt = f"bestvideo[height<={res}][ext=mp4]+bestaudio[ext=m4a]/best[height<={res}][ext=mp4]/best"\n            else:\n                fmt = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"\n            base_opts.update({"format": fmt, "merge_output_format": "mp4"})\n        elif mode == "僅音訊（MP3）":\n            base_opts.update({\n                "format": "bestaudio/best",\n                "postprocessors": [{\n                    "key": "FFmpegExtractAudio",\n                    "preferredcodec": "mp3",\n                    "preferredquality": "192",\n                }],\n            })\n        elif mode == "影片 + 字幕":\n            base_opts.update({\n                "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",\n                "merge_output_format": "mp4",\n                "writesubtitles": True,\n                "writeautomaticsub": True,\n                "subtitleslangs": ["zh-Hant", "zh-Hans", "zh", "en", "ja"],\n                "embedsubtitles": True,\n            })\n\n        with st.spinner("下載中..."):\n            try:\n                with yt_dlp.YoutubeDL(base_opts) as ydl:\n                    info = ydl.extract_info(url, download=True)\n                    filename = ydl.prepare_filename(info)\n                    if mode == "僅音訊（MP3）":\n                        filename = os.path.splitext(filename)[0] + ".mp3"\n\n                    if not os.path.exists(filename):\n                        for f in os.listdir(tmp_dir):\n                            filename = os.path.join(tmp_dir, f)\n                            break\n\n                    if os.path.exists(filename):\n                        title = info.get("title", "下載完成")\n                        st.success(f"✅ {title}")\n                        with open(filename, "rb") as f:\n                            st.download_button(\n                                label="💾 儲存檔案",\n                                data=f,\n                                file_name=os.path.basename(filename),\n                                use_container_width=True,\n                            )\n                    else:\n                        st.error("找不到下載的檔案")\n            except yt_dlp.utils.DownloadError as e:\n                msg = str(e)\n                if "Private video" in msg or "Sign in" in msg:\n                    st.error("❌ 這是私人影片或需要登入才能存取")\n                elif "not a valid URL" in msg or "Unsupported URL" in msg:\n                    st.error("❌ 不支援的網址格式")\n                else:\n                    st.error(f"❌ 下載失敗：{msg[:200]}")\n            except Exception as e:\n                st.error(f"❌ 發生錯誤：{str(e)[:200]}")\n\nwith st.expander("📋 支援的平台"):\n    st.markdown("""\n    - **YouTube** — youtube.com, youtu.be\n    - **Instagram** — instagram.com/p/, /reel/\n    - **TikTok** — tiktok.com\n    - **Twitter/X** — twitter.com, x.com\n    - **Facebook** — facebook.com/watch, fb.watch\n    - **Bilibili** — bilibili.com\n    - **Twitch** — twitch.tv\n    - **Reddit** — reddit.com\n    - **Vimeo** — vimeo.com\n    - **SoundCloud** — soundcloud.com\n    - ...還有更多！基本上貼入任何影音網址都可以試試看\n    """)
+import streamlit as st
+import yt_dlp
+import os
+import tempfile
+import re
+
+st.set_page_config(page_title="Media Downloader", page_icon="film", layout="centered")
+
+st.markdown("<h1 style='text-align:center'>Media Downloader</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center;color:#888'>YouTube / IG / TikTok / X / Facebook / Bilibili + 1000 more</p>", unsafe_allow_html=True)
+st.divider()
+
+url = st.text_input("Paste video URL", placeholder="https://...")
+
+col1, col2 = st.columns(2)
+with col1:
+    mode = st.radio("Mode", ["Video (MP4)", "Audio only (MP3)", "Video + Subtitles"])
+with col2:
+    quality = st.radio("Quality", ["Best", "1080p", "720p", "480p"])
+
+if st.button("Download", type="primary", use_container_width=True):
+    if not url or not url.strip():
+        st.error("Please paste a URL")
+    else:
+        url = url.strip()
+        if not re.match(r"https?://", url):
+            url = "https://" + url
+
+        tmp_dir = tempfile.mkdtemp()
+        output_template = os.path.join(tmp_dir, "%(title).70s.%(ext)s")
+
+        base_opts = {
+            "outtmpl": output_template,
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "max_filesize": 500 * 1024 * 1024,
+        }
+
+        if mode == "Video (MP4)":
+            res_map = {"Best": "", "1080p": "1080", "720p": "720", "480p": "480"}
+            res = res_map.get(quality, "")
+            if res:
+                fmt = f"bestvideo[height<={res}][ext=mp4]+bestaudio[ext=m4a]/best[height<={res}][ext=mp4]/best"
+            else:
+                fmt = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+            base_opts.update({"format": fmt, "merge_output_format": "mp4"})
+        elif mode == "Audio only (MP3)":
+            base_opts.update({
+                "format": "bestaudio/best",
+                "postprocessors": [{
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": "192",
+                }],
+            })
+        elif mode == "Video + Subtitles":
+            base_opts.update({
+                "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+                "merge_output_format": "mp4",
+                "writesubtitles": True,
+                "writeautomaticsub": True,
+                "subtitleslangs": ["zh-Hant", "zh-Hans", "zh", "en", "ja"],
+                "embedsubtitles": True,
+            })
+
+        with st.spinner("Downloading..."):
+            try:
+                with yt_dlp.YoutubeDL(base_opts) as ydl:
+                    info = ydl.extract_info(url, download=True)
+                    filename = ydl.prepare_filename(info)
+                    if mode == "Audio only (MP3)":
+                        filename = os.path.splitext(filename)[0] + ".mp3"
+
+                    if not os.path.exists(filename):
+                        for f in os.listdir(tmp_dir):
+                            filename = os.path.join(tmp_dir, f)
+                            break
+
+                    if os.path.exists(filename):
+                        title = info.get("title", "Done")
+                        st.success("Done: " + title)
+                        with open(filename, "rb") as f:
+                            st.download_button(
+                                label="Save file",
+                                data=f,
+                                file_name=os.path.basename(filename),
+                                use_container_width=True,
+                            )
+                    else:
+                        st.error("File not found")
+            except yt_dlp.utils.DownloadError as e:
+                msg = str(e)
+                if "Private video" in msg or "Sign in" in msg:
+                    st.error("Private video or login required")
+                elif "not a valid URL" in msg or "Unsupported URL" in msg:
+                    st.error("Unsupported URL format")
+                else:
+                    st.error("Download failed: " + msg[:200])
+            except Exception as e:
+                st.error("Error: " + str(e)[:200])
+
+with st.expander("Supported platforms"):
+    st.markdown("""
+    - **YouTube** - youtube.com, youtu.be
+    - **Instagram** - instagram.com/p/, /reel/
+    - **TikTok** - tiktok.com
+    - **Twitter/X** - twitter.com, x.com
+    - **Facebook** - facebook.com/watch
+    - **Bilibili** - bilibili.com
+    - **Twitch** - twitch.tv
+    - **Reddit** - reddit.com
+    - **Vimeo** - vimeo.com
+    - **SoundCloud** - soundcloud.com
+    - ...and 1000+ more sites!
+    """)
